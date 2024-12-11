@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(400%);
+    opacity: 0;
+  }
+}
+
+.snowflake {
+  position: absolute;
+  top: -50px;
+  animation: fall linear infinite;
+  color: white; /* Snowflake color */
+  user-select: none; /* Prevent text selection */
+}
+
+@keyframes fall1 {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(600%);
+    opacity: 0;
+  }
+}
+
+.snowflake1 {
+  position: absolute;
+  top: -50px;
+  animation: fall1 1s linear 1;
+  color: white; /* Snowflake color */
+  user-select: none; /* Prevent text selection */
+}
