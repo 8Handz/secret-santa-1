@@ -1,27 +1,38 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { MongoClient } = require("mongodb");
+// MongoDB Utility
+import { MongoClient } from "mongodb";
 
-const uri =
-  "mongodb+srv://samuelpullukaran5:sam123@santa-names.5urny.mongodb.net/?retryWrites=true&w=majority&appName=santa-names";
-const dbName = "santa-names";
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.DB_NAME;
+
+if (!uri) {
+  throw new Error("Missing MONGODB_URI in environment variables");
+}
+
+if (!dbName) {
+  throw new Error("Missing DB_NAME in environment variables");
+}
+
 let client;
 let clientPromise;
 
 if (!global._mongoClientPromise) {
-  client = new MongoClient(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  try {
+    client = new MongoClient(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // 5 seconds timeout
+    });
 
-  global._mongoClientPromise = client.connect();
+    global._mongoClientPromise = client.connect();
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    throw new Error("Failed to connect to MongoDB");
+  }
 }
 
 clientPromise = global._mongoClientPromise;
 
-// Function to get the database
-async function getDatabase() {
+export async function getDatabase() {
   const client = await clientPromise;
   return client.db(dbName);
 }
-
-module.exports = { getDatabase };

@@ -6,47 +6,20 @@ import "./globals.css";
 // import { Input } from "@nextui-org/react";
 import React from "react";
 import Confetti from "react-confetti";
-import {Input} from "@nextui-org/input";
+import { Input } from "@nextui-org/input";
 
 export default function Home() {
-  const [auth, setauth] = useState(false);
   const [user, setUser] = useState("");
   const [pickedName, setPickedName] = useState("");
   const [done, setDone] = useState(false);
   const [value, setValue] = useState("");
-  const [secretKeys, setSecretKeys] = useState<string[][]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [time, setTime] = useState("");
 
-  const checkSecretKey = (value: string) => {
-    const res = secretKeys.find((val) => {
-      if (val[1] === value) {
-        setUser(val[0]);
-        return true;
-      }
-    });
-    console.log(res);
-    console.log("HI");
-
-    if (res) {
-      setauth(true);
-    } else {
-      setauth(false);
-    }
-    return res;
-  };
-
-  const isInvalid = React.useMemo(() => {
-    if (value === "") {
-      setauth(false);
-      return false;
-    } 
-    return checkSecretKey(value) ? false : true;
-  }, [value]);
-
   function getTimeOfDayInTimezone() {
-    const now = new Date();
-    const hour = now.getHours();
+    const hour = new Date().getHours();
 
     if (hour >= 0 && hour < 12) {
       setTime("Morning");
@@ -58,92 +31,51 @@ export default function Home() {
   }
 
   useEffect(() => {
-    fetch("/api/getData")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Network response was not ok " + response.statusText);
-        }
-        return response.json(); // Parse JSON data from the response
-      })
-      .then((data) => {
-        setSecretKeys(data);
-      })
-      .catch((error) => {
-        console.error("There was a problem with the fetch operation:", error);
-      });
-
     getTimeOfDayInTimezone();
 
-    const isSecretSantaSet = localStorage.getItem("secretSanta") ? true : false;
-    const user = localStorage.getItem("user") ? true : false;
-    setDone(isSecretSantaSet);
-    if (user) setUser(localStorage.getItem("user") ?? "");
-    if (isSecretSantaSet)
-      setPickedName(localStorage.getItem("secretSanta") ?? "");
+    const savedPick = localStorage.getItem("secretSanta");
+    const savedUser = localStorage.getItem("user");
+    if (savedPick) {
+      setDone(true);
+      setPickedName(savedPick);
+      if (savedUser) setUser(savedUser);
+    }
   }, []);
 
-  const getRandomNameAndDelete = async (auth: string) => {
-    // Check if they alrdy got a name assigned
-    const check = secretKeys.find((val) => {
-      if (val[0] === auth) {
-        if (val[2] !== "") {
-          return true;
-        }
-      }
-    });
-
-    if (check) {
-      //do smthign fro true
-      localStorage.setItem("secretSanta", check[2]);
-      setPickedName(check[2]);
-    } else {
-      // If they dont fetch a new name for them and assign it
-      const response = await fetch("/api/pickSanta");
-      if (!response.ok) {
-        throw new Error("Failed to fetch names");
-      }
+  // The key is verified and the name is picked on the server; we only
+  // ever receive our own result.
+  const handleClick = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: value }),
+      });
       const data = await response.json();
 
-      // Filter out the auth
-      const filteredNames = data.filter((name: string) => name !== auth);
-      if (filteredNames.length === 0) {
-        console.error("No other names available!");
-        return null;
+      if (!response.ok) {
+        setError(
+          response.status === 401
+            ? "Enter Valid Secret Key"
+            : data.error ?? "Something went wrong"
+        );
+        return;
       }
-      // Pick a random name
-      const randomIndex = Math.floor(Math.random() * filteredNames.length);
-      const randomName = filteredNames[randomIndex];
-      setPickedName(randomName);
-      localStorage.setItem("secretSanta", randomName);
 
-      // Remove the picked name
-      // Send updated names back to the server
-
-      const responseSend = await fetch("/api/pickSanta", {
-        method: "POST", // Specify the HTTP method
-        headers: {
-          "Content-Type": "application/json", // Specify the content type
-        },
-        body: JSON.stringify({
-          arrayIndex: secretKeys.findIndex((val) => val[0] === auth),
-          newName: randomName,
-        }),
-      });
-
-      if (!responseSend.ok) {
-        throw new Error("Failed to fetch names");
-      }
+      setUser(data.user);
+      setPickedName(data.pickedName);
+      localStorage.setItem("user", data.user);
+      localStorage.setItem("secretSanta", data.pickedName);
+      setDone(true);
+      setTimeout(() => setShowConfetti(true), 1000);
+      setTimeout(() => setShowConfetti(false), 5000);
+    } catch {
+      setError("Something went wrong");
+    } finally {
+      setLoading(false);
     }
-
-    setDone(true);
-  };
-
-  const handleClick = async () => {
-    console.log("HI");
-    localStorage.setItem("user", user);
-    setShowConfetti(true);
-    getRandomNameAndDelete(user);
-    setTimeout(() => setShowConfetti(false), 5000);
   };
 
   return (
@@ -161,7 +93,7 @@ export default function Home() {
       <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen h-96 p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
         <main className=" dark flex flex-col gap-8 row-start-2 items-center sm:items-start">
           <div
-            className={`transition-all duration-500 ${
+            className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${
               done
                 ? "opacity-0 translate-y-5 pointer-events-none"
                 : "opacity-100 translate-y-0"
@@ -170,23 +102,27 @@ export default function Home() {
             <>
               <Input
                 className="max-w-xs"
-                errorMessage={"Enter Valid Secret Key"}
-                isInvalid={isInvalid}
+                errorMessage={error}
+                isInvalid={error !== ""}
                 label="Secret Key"
                 type="password"
                 variant="bordered"
                 value={value}
-                onValueChange={setValue}
+                onValueChange={(v) => {
+                  setValue(v);
+                  setError("");
+                }}
               />
               <div
                 className={`mt-4 transition-all duration-500 ${
-                  auth
+                  value !== ""
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 -translate-y-5"
                 }`}
               >
                 <Button
-                  disabled={!auth}
+                  isDisabled={value === "" || loading}
+                  isLoading={loading}
                   color="primary"
                   onClick={handleClick}
                 >
@@ -196,14 +132,18 @@ export default function Home() {
             </>
           </div>
           <div
-            className={`transition-all duration-500 items-center ${
+            className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${
               !done
                 ? "opacity-0 translate-y-5 pointer-events-none"
                 : "opacity-100 translate-y-0"
             }`}
           >
-            <>{`Good ${time}, ${user}. Your secret santa is ${pickedName}`}</>
-
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-center bg-gradient-to-b from-white to-black bg-clip-text text-transparent">
+              <span className="block">{`Good ${time},`}</span>
+              <span className="block">{`${user}.`}</span>
+              <span className="block">{`Your secret santa is`}</span>
+              <span className="block">{`${pickedName}`}</span>
+            </h1>
           </div>
         </main>
         <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
